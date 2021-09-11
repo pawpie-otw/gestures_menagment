@@ -1,12 +1,12 @@
 from __future__ import annotations
 from hand_tracking_min import HandTracking
 import cv2
-import mediapipe as mp
 import numpy as np
 from volume_set import set_audio_volume
 from gestures import GesturesDetect
 from math import dist
 from triggers import *
+from hand_lms import HandLms
 # from enum_classes import HandVerticalGestures
 ###############
 wCam, hCam = 1280, 720
@@ -17,6 +17,7 @@ wCam, hCam = 1280, 720
 def main():
     list_used_functions = set()
     DEVIL_HORNS = np.array([False, True, False, False, True])
+    LOOSER = np.array([True, True, False, False, False])
     hand_tracking = HandTracking(min_det_conf=.7)
     gestures = GesturesDetect()
     while True:
@@ -36,9 +37,10 @@ def main():
 
         if len(hand_lms_pos) != 0:
             # print(hand_lms_pos)
-
-            # point_a = hand_lms_pos[4, 1:]
-            # point_b = hand_lms_pos[8, 1:]
+            hand_lms = HandLms(hand_lms_pos[0],
+                               *[hand_lms_pos[1+i*4:5+i*4] for i in range(5)])
+            point_a = hand_lms.thumb_fin[-1]
+            point_b = hand_lms.index_fin[-1]
             # center = (point_a + point_b) // 2
             # cv2.circle(img, tuple(
             #     hand_lms_pos[4]), 4, (255, 0, 255), cv2.FILLED)
@@ -48,8 +50,8 @@ def main():
             # cv2.line(img, hand_lms_pos[0], hand_lms_pos[9],
             #          (255, 0, 255), 2, cv2.FILLED)
 
-            fingers = gestures.straightened_all_fingers(hand_lms_pos)
-            angle = gestures.hand_pos_angle(hand_lms_pos, rad_to_deg=True)
+            fingers = gestures.straightened_all_fingers(hand_lms)
+            angle = gestures.hand_pos_angle(hand_lms, rad_to_deg=True)
             if abs(angle) < 15:
                 cv2.putText(img, "fingers: " + str(fingers), (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
                             1, (255, 0, 255), 1, cv2.LINE_AA)
@@ -57,12 +59,18 @@ def main():
             cv2.putText(img, "ang: " + str(angle), (50, 150), cv2.FONT_HERSHEY_SIMPLEX,
                         1, (255, 0, 255), 1, cv2.LINE_AA)
 
-            if hand_angle_between(-15, 15, angle) and \
+            if hand_angle_between(angle, -15, 15) and \
                     all(fingers == DEVIL_HORNS) and \
                     not 1 in list_used_functions:
                 list_used_functions.add(1)
                 print("devil horns")
-            if not hand_angle_between(-15, 15, angle):
+
+            if all(fingers == LOOSER):
+                cv2.line(img, point_a, point_b,
+                         (255, 0, 255), 2, cv2.FILLED)
+                set_audio_volume(dist(point_a, point_b))
+            if not hand_angle_between(angle, -15, 15):
+                # print('clear')
                 list_used_functions.clear()
 
             # if gestures.like(hand_lms_pos):
